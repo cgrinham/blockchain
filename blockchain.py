@@ -64,7 +64,8 @@ class Blockchain(object):
                 return False
 
             # Check that the Proof of Work is correct
-            if not self.valid_proof(last_block['proof'], block['proof']):
+            if not self.valid_proof(last_block['proof'], block['proof'],
+                                    hash(last_block)):
                 return False
 
             last_block = block
@@ -184,13 +185,13 @@ class Blockchain(object):
         """
 
         proof = 0
-        while self.valid_proof(last_proof, proof) is False:
+        while self.valid_proof(last_proof, proof, self.hash(self.last_block)) is False:
             proof += 1
 
         return proof
 
     @staticmethod
-    def valid_proof(last_proof, proof):
+    def valid_proof(last_proof, proof, last_block_hash):
         """
         Validates the Proof: Does hash(last_proof, proof) contain 4
         leading zeroes?
@@ -200,7 +201,7 @@ class Blockchain(object):
         :return: <bool> True if correct, False if not.
 
         """
-        guess = f'{last_proof}{proof}'.encode()
+        guess = f'{last_proof}{proof}{last_block_hash}'.encode()
         guess_hash = hashlib.sha256(guess).hexdigest()
         return guess_hash[:4] == "0000"  # returns true or false
 
