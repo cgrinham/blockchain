@@ -1,5 +1,4 @@
 import hashlib
-import argparse
 import json
 import requests
 from time import time
@@ -145,13 +144,26 @@ class Blockchain(object):
         :return: <int> the index of the Block that will hold this transaction
         """
 
-        self.current_transactions.append({
-                'sender': sender,
-                'recipient': recipient,
-                'amount': amount,
-            })
+        if self.check_address_balance(sender) >= amount or sender == "0":
+            self.current_transactions.append({
+                    'sender': sender,
+                    'recipient': recipient,
+                    'amount': amount,
+                })
 
-        return self.last_block['index'] + 1
+            return self.last_block['index'] + 1
+        return False
+
+    def check_address_balance(self, address):
+        # Return the balance of the given address
+        amount = 0
+        for block in self.chain:
+            for transaction in block['transactions']:
+                if transaction['recipient'] == address:
+                    amount += transaction['amount']
+                if transaction['sender'] == address:
+                    amount -= transaction['amount']
+        return amount
 
     @property
     def last_block(self):
@@ -210,7 +222,8 @@ class Blockchain(object):
 app = Flask(__name__)
 
 # Generate a globally unique address for this node
-node_identifier = str(uuid4()).replace('-', '')
+# node_identifier = str(uuid4()).replace('-', '')
+node_identifier = str("milly")
 
 # Instantiate Blockchain
 blockchain = Blockchain()
@@ -259,7 +272,10 @@ def new_transaction():
     index = blockchain.new_transaction(values['sender'], values['recipient'],
                                        values['amount'])
 
-    response = {'message': f'Transction will be added to Block {index}'}
+    if index is False:
+        response = {'message': 'Insufficient funds'}
+    else:
+        response = {'message': f'Transction will be added to Block {index}'}
 
     return jsonify(response), 201
 
@@ -310,10 +326,33 @@ def consensus():
     return jsonify(response), 200
 
 
+@app.route('/addresses/totals', methods=['GET'])
+def totals():
+    addresses = {}
+
+    for block in blockchain.chain:
+        for transaction in block['transactions']:
+            # If the sender is in addresses remove amount from their total
+            if transaction['sender'] in addresses:
+                addresses[transaction['sender']] -= transaction['amount']
+            else:
+                addresses[transaction['sender']] = 0 - transaction['amount']
+
+            # If the recipient is in addresses add amount to their total
+            if transaction['recipient'] in addresses:
+                addresses[transaction['recipient']] += transaction['amount']
+            else:
+                addresses[transaction['recipient']] = transaction['amount']
+
+    return jsonify(addresses), 200
+
+
 if __name__ == '__main__':
+    import argparse
     # parse command line arguments
     parser = argparse.ArgumentParser()
-    parser.add_argument("port", help="specify the port to run on", type=int)
+    parser.add_argument("-p", "--port", default=5000,
+                        help="specify the port to run on", type=int)
 
     args = parser.parse_args()
 
